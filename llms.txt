@@ -1,0 +1,162 @@
+# Teams Transcripts
+
+> Ask Claude what was said in your Teams meetings. It downloads meeting transcripts with speaker names, meeting chat, participants and recordings, and exports Teams chats and channels, from the Teams desktop app or Teams for the web on your Mac. A Claude Desktop extension (.mcpb) for macOS, version 1.22.0.
+
+## Install (agents)
+
+1. Continue only if `uname -s` prints `Darwin` and `/Applications/Claude.app` exists. Otherwise tell the user it needs a Mac with Claude Desktop 2.7032.0 or later. It also needs the Microsoft Teams desktop app, or Google Chrome or Microsoft Edge for Teams for the web.
+2. Run the installer with this one command. It downloads the extension, checks its SHA-256 (nothing changes before the check passes) and opens Claude Desktop's install dialog. With no terminal it never prompts, and `--no-wait` makes it exit once the dialog is open. It exits non-zero, with the reason on stderr, if anything fails; exit 0 means it finished its steps, not that Claude Desktop installed the extension.
+
+```bash
+curl -fsSL https://wpp-jamie-mills.github.io/teams-transcripts-site/install.sh | TEAMS_TRANSCRIPTS_INSTALL_TTY=/dev/null bash -s -- --no-wait
+```
+
+3. Ask the user to click Install in the dialog Claude Desktop opened (they can leave its settings blank: it reads the Teams desktop app unless they switch on "Default to Teams for the web"), and to switch the extension on if Claude Desktop shows it off (Settings > Extensions; one click, then wait a few seconds). You can't do these for them. Never ask for a password or a token: nothing in the install needs one.
+
+### Verify
+
+Run the installer again with `--status` (after `bash -s --`):
+
+```bash
+curl -fsSL https://wpp-jamie-mills.github.io/teams-transcripts-site/install.sh | bash -s -- --status
+```
+
+It should show `Ready: yes`. Otherwise its `Next:` line says the one thing left to do: tell the user, then check again. It never prints an account or an email address. When it is ready, ask the user to start a new chat in Claude Desktop (chats opened while the extension was off never see its tools) and ask Claude "Is Teams ready?". If Teams needs a sign-in, Claude brings the Teams window to the front; only the user can sign in (MFA included). Then they can ask, for example, "List my meetings with transcripts from the last week".
+
+### Updates
+
+The extension keeps itself up to date. Once a day it checks this site for a newer version, and when there is one Claude shows the user an update card in Claude Desktop. Update now downloads the new version, checks its SHA-256 and opens Claude Desktop's install dialog; it is installed only when the user clicks Install there. Not now hides that version for a week. You can't click these for the user, and nothing installs until they do. To update straight away, run the same install command again (the user still clicks Install). Settings are kept.
+
+## What it can and can't do
+
+- **Can:** list meetings with transcripts and recordings in every signed-in
+  work account and tenant; download a meeting's transcript (as caption cues,
+  speaker turns or plain text) with speaker names, its chat with reactions,
+  and who organised it, was invited, spoke and joined; save a recording you
+  own; capture a recording's presentation slides and build a notes-page deck;
+  export ordinary chats and channels over a date window; read through either
+  the Teams desktop app or Teams for the web.
+- **Can't:** download someone else's recording (Teams lets only its owner
+  download it; Claude says so and the extension never works around it); give
+  join and leave times (only who joined); list every attendee of a very large
+  meeting (Teams truncates that list); export chat attachments or system
+  messages; read personal (teams.live.com) accounts. A channel export's
+  members are the people who posted in the window, because Teams exposes no
+  channel roster.
+- **Speaker names** come from the Teams window, which shows one account at a
+  time, so the extension may switch the window to the meeting's account and
+  back. When names can't be recovered, the complete transcript is still
+  returned without them. Batch downloads never carry names.
+- **Files:** transcripts and chats come back into the chat unless you ask for
+  a file. Files (and recordings, always) are written only to
+  `~/.teams-transcripts/output`, and Claude gives you the full path.
+- **Restarts:** the desktop app may need restarting with debugging switched
+  on. That is never done during a live or undetermined call unless you turn
+  on **Allow forced Teams restarts** and ask for it. Teams for the web never
+  closes or restarts anything: it runs in its own Chrome or Edge window,
+  minimised in the background.
+- **Updates:** once a day it checks its landing page for a newer version.
+  When there is one, Claude shows an update card: **Update now** downloads
+  it, checks it and opens Claude Desktop's install dialog, and it is
+  installed only when you click **Install** there. **Not now** hides that
+  version for a week. Claude can't update it for you. Turn **Check for
+  updates** off in the extension's settings to stop the daily check.
+- **Your data:** transcripts, chat and participant details that Claude reads
+  become part of your conversation with Claude, under your Claude account's
+  terms. The extension itself makes no Vertex AI or other model calls.
+
+## Available tools
+
+| Tool | What it does | Changes anything? |
+|---|---|---|
+| `teams_status` | Whether Teams is ready, which accounts are signed in, and the one thing you must do next (sign in, start the app, confirm interrupting a call) | No |
+| `teams_start` | Starts Teams for the web in its own Chrome or Edge window, or restarts the desktop app with debugging (never during a call); brings the sign-in window to the front and can wait for you to sign in | Starts or restarts Teams |
+| `restart_teams` | Safely restarts the Teams desktop app with debugging switched on; refused during a live or undetermined call unless forced restarts are allowed | Restarts Teams |
+| `list` | Meetings with transcripts and recordings, chats and channels, or the signed-in tenants | No |
+| `download` | One meeting: transcript (cues, turns or text), meeting chat and participants; or its recording with `recording=true` | Only with `output_path`: a file in the output folder (a recording always is one) |
+| `download_batch` | Every transcript in a date window, one file per meeting, without speaker names | Writes files in the output folder |
+| `download_chat_messages` | A person's chat, a chat by thread id or Teams link, a channel, or all chats, over a date window | Only with `output_path` |
+| `download_slides` | A recording's presentation slides, as PNGs and a manifest timed to the transcript | Writes a folder in the output folder |
+| `build_deck` | A notes-page PDF or picture PPTX from a captured meeting folder, each slide with its transcript and chat | Writes files in the output folder |
+| `deck_slide_images` | Captured slide images, in small batches, for building an editable deck | No |
+| `check_for_updates` | Checks the landing page for a newer version and shows the update card | No |
+| `install_update`, `snooze_update` | Used only by the update card's Update now and Not now buttons; hidden from Claude | Opens Claude Desktop's install dialog |
+
+The output folder is `~/.teams-transcripts/output`. Every tool that reads
+Teams takes `target` (`desktop` or `web`): Claude passes it when you name one,
+otherwise the extension's default applies. `build_deck` and
+`deck_slide_images` work on files already captured, so they don't.
+
+## Troubleshooting
+
+- **The installer says "Checksum mismatch — nothing was installed".** A new
+  release can take up to about 10 minutes to reach every server. Wait, then
+  run the install command again.
+- **The installer says Claude Desktop is missing or too old.** Install or
+  update Claude Desktop (2.7032.0 or later), open it once, then run the
+  install command again.
+- **Claude has no Teams tools.** Switch the extension on (Settings >
+  Extensions), then start a new chat: chats opened while it was off never see
+  its tools.
+- **`--status` says `Server: failed`.** Run the install command again. If it
+  keeps failing, `~/Library/Logs/Claude/mcp-server-Teams Transcripts.log`
+  says why.
+- **The extension shows as failed after install.** It needs network access
+  the first time, to download Python and its dependencies. Run the install
+  command again; `~/Library/Logs/Claude/main.log` says what went wrong.
+- **Claude asks you to sign in to Teams.** Sign in in the window it brought
+  to the front (MFA included); Claude waits and carries on. The sign-in is
+  remembered.
+- **Claude says a call is in progress, or that it can't tell, and it hasn't
+  restarted Teams.** The desktop app needs a restart with debugging, which is
+  never done during a live call or one that can't be ruled out (a call is
+  recognised by Teams' own "call in progress" power assertion or a call
+  window; if neither can be read, Claude says it can't tell). Ask again
+  after the call, or ask Claude to use Teams for the web, which never
+  restarts anything.
+- **Claude says Teams for the web is "still opening a page for each tenant".**
+  Teams for the web shows one organisation per page, so the first request
+  after a fresh sign-in opens a page for each of yours. That can take about
+  90 seconds; ask again and Claude carries on. If a request times out while
+  this is happening, the error says so (`preflight_timeout`): ask "Is Teams
+  ready?" and then repeat the request.
+- **Claude says one of your accounts isn't signed in.** The other accounts
+  are still readable. Say "sign that account in" and Claude opens its
+  sign-in window; it never opens one you didn't ask for.
+- **"That tenant isn't signed in here" (`TENANT_NOT_FOUND`).** Sign in to
+  that tenant in Teams, or ask "Which tenants can you read?" and pick one.
+- **Claude can't find a meeting (`MEETING_NOT_FOUND`).** Check the date, or
+  ask Claude to list your meetings and pick one from the list.
+- **A transcript has no speaker names.** Names come from the Teams window.
+  Ask for that one meeting (batch downloads never have names), and make sure
+  its account is signed in to Teams.
+- **A recording fails with `download_restricted`.** Teams lets only a
+  recording's owner (usually the organiser) download it. Ask them for it.
+- **Claude says Teams is busy (`BUSY`).** Another request is using the same
+  Teams. Wait a moment and ask again.
+- **A Teams for the web window shows "Pick an account".** That account's
+  sign-in didn't survive. Ask "Is Teams ready?": Claude brings the window
+  forward for you to sign in again. The extension's browser windows stay
+  open, minimised, between requests; that is normal.
+
+## Update and remove
+
+- **Update:** when a new version is out, Claude shows an update card in the
+  chat (at most once a day); click **Update now**, then **Install** in Claude
+  Desktop's dialog, and start a new chat. **Not now** hides that version for
+  a week. You can also ask *"Check for updates to Teams Transcripts"*, or run
+  the install command again. Your settings are kept. To stop the daily
+  check, turn **Check for updates** off in the extension's settings.
+- **Remove:** uninstall the extension in Claude Desktop (Settings >
+  Extensions). Then run the install command with `bash -s -- --uninstall` in
+  place of `bash` to remove the installer's download folder,
+  `~/.teams-transcripts-extension` (it asks first; add `--yes` when there is
+  no terminal). Neither touches `~/.teams-transcripts`, which holds your
+  saved files and the Teams for the web sign-ins: delete it yourself if you
+  want those gone.
+
+## Links
+
+- [Landing page](https://wpp-jamie-mills.github.io/teams-transcripts-site/): install guides for people and agents
+- [Summary](https://wpp-jamie-mills.github.io/teams-transcripts-site/summary.md): this project as one markdown page
+- [Installer](https://wpp-jamie-mills.github.io/teams-transcripts-site/install.sh): the script the install command runs
